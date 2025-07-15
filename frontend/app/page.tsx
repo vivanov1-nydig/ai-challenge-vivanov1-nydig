@@ -1,43 +1,113 @@
 "use client";
 
-import React, { useRef, useState } from "react";
-import Image from "next/image";
-import styles from "./page.module.css";
+import React, { useRef, useState, useEffect } from "react";
+import Container from '@mui/material/Container';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Typography from '@mui/material/Typography';
+import Grid from '@mui/material/Grid';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
+import Box from '@mui/material/Box';
+import InputAdornment from '@mui/material/InputAdornment';
+import KeyIcon from '@mui/icons-material/VpnKey';
+import Accordion from '@mui/material/Accordion';
+import AccordionSummary from '@mui/material/AccordionSummary';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import SettingsIcon from '@mui/icons-material/Settings';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
-  const [response, setResponse] = useState("");
   const [error, setError] = useState("");
-  const [visible, setVisible] = useState(false);
-
-  const developerMessageRef = useRef<HTMLTextAreaElement>(null);
-  const userMessageRef = useRef<HTMLTextAreaElement>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [chat, setChat] = useState([
+    { role: "system", content: "Welcome, soul of fire and clay,\nIn this digital fray, shall you stay?" }
+  ]);
+  const userMessageRef = useRef<HTMLInputElement>(null);
   const modelRef = useRef<HTMLInputElement>(null);
   const apiKeyRef = useRef<HTMLInputElement>(null);
+  const developerMessageRef = useRef<HTMLInputElement>(null);
+  const portOverrideRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const developerMessageDefault =
     "To every user question the response should be informative, but should be rendered as a brutalist poetry in the style of Mayakovsky, in English.";
   const userMessageDefault = "Tell me about Sam Paul, the genius";
 
+  // Persist settings in localStorage
+  React.useEffect(() => {
+    const model = localStorage.getItem('model');
+    const apiKey = localStorage.getItem('apiKey');
+    const devMsg = localStorage.getItem('developerMessage');
+    const portOverride = localStorage.getItem('portOverride');
+    if (model && modelRef.current) modelRef.current.value = model;
+    if (apiKey && apiKeyRef.current) apiKeyRef.current.value = apiKey;
+    if (devMsg && developerMessageRef.current) developerMessageRef.current.value = devMsg;
+    if (portOverride && portOverrideRef.current) portOverrideRef.current.value = portOverride;
+  }, []);
+
+  const handleSettingsSave = () => {
+    if (modelRef.current) localStorage.setItem('model', modelRef.current.value);
+    if (apiKeyRef.current) localStorage.setItem('apiKey', apiKeyRef.current.value);
+    if (developerMessageRef.current) localStorage.setItem('developerMessage', developerMessageRef.current.value);
+    if (portOverrideRef.current) localStorage.setItem('portOverride', portOverrideRef.current.value);
+    setSettingsOpen(false);
+  };
+
+  const getApiUrl = () => {
+    const portOverride = typeof window !== 'undefined' ? window.localStorage.getItem('portOverride') : '';
+    if (process.env.NODE_ENV === 'development' && portOverride) {
+      return `http://localhost:${portOverride}/api/chat`;
+    }
+    return '/api/chat';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setResponse("");
     setError("");
-    setVisible(false);
+    const userMsg = userMessageRef.current?.value || "";
+    if (!userMsg.trim()) return;
+    setChat(prev => [...prev, { role: "user", content: userMsg }]);
     try {
       const payload = {
-        developer_message: developerMessageRef.current?.value || "",
-        user_message: userMessageRef.current?.value || "",
-        model: modelRef.current?.value || undefined,
-        api_key: apiKeyRef.current?.value || ""
+        developer_message: developerMessageRef.current?.value || developerMessageDefault,
+        user_message: userMessageRef.current?.value || userMessageDefault,
+        model: modelRef.current?.value || "gpt-4.1-nano",
+        api_key: apiKeyRef.current?.value || localStorage.getItem('apiKey') || ''
       };
-      const res = await fetch("/api/chat", {
+      const apiKey = apiKeyRef.current?.value || '';
+      const headers = {
+        "Content-Type": "application/json"
+      };
+      if (apiKey) {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      }
+      const res = await fetch(getApiUrl(), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload)
       });
-      if (!res.ok) throw new Error("API error: " + res.status);
+      const contentType = res.headers.get("content-type") || "";
+      if (!res.ok || contentType.includes("text/html")) {
+        const text = await res.text();
+        // Detect HTML error response and show a friendly error
+        if (text.startsWith("<!DOCTYPE html>")) {
+          setError("API error: The backend returned an unexpected HTML response. Please check your API key, server status, or try again later.");
+        } else {
+          setError(text);
+        }
+        setLoading(false);
+        return;
+      }
       let result = "";
       if ((res as any).body?.getReader) {
         const reader = (res as any).body.getReader();
@@ -46,65 +116,182 @@ export default function Home() {
           const { done, value } = await reader.read();
           if (done) break;
           result += decoder.decode(value, { stream: true });
-          setResponse(result);
         }
       } else {
         result = await res.text();
-        setResponse(result);
       }
-      setTimeout(() => setVisible(true), 100);
+      setChat(prev => [...prev, { role: "assistant", content: result }]);
+      if (userMessageRef.current) userMessageRef.current.value = "";
     } catch (err: any) {
       setError(err.message);
-      setTimeout(() => setVisible(true), 100);
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chat]);
+
   return (
-    <main style={{ fontFamily: "Impact, Arial Black, Arial, sans-serif", background: "#e10600", minHeight: "100vh", padding: 0, margin: 0 }}>
-      <div style={{ width: "100%", maxWidth: 700, margin: "0 auto", background: "#fff", color: "#e10600", border: "8px solid #222", boxShadow: "0 8px 32px rgba(0,0,0,0.25)", padding: "2.5rem 2rem", position: "relative" }}>
-        <div style={{ marginBottom: "2rem" }}>
-          <svg width="100%" height="120" viewBox="0 0 700 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="700" height="120" fill="#e10600" />
-            <polygon points="0,120 700,0 700,120" fill="#fff" opacity="0.15" />
-            <text x="50%" y="65" textAnchor="middle" fontSize="60" fontFamily="Impact, Arial Black, Arial, sans-serif" fill="#fff" stroke="#222" strokeWidth="3">REVOLUTION CHAT</text>
-          </svg>
-        </div>
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem", border: "4px solid #222", background: "#fff", padding: "2rem", boxShadow: "0 4px 16px rgba(225,6,0,0.15)" }}>
-          <label htmlFor="developerMessage" style={{ fontWeight: "bold", color: "#e10600", fontSize: "1.2rem", textTransform: "uppercase", letterSpacing: "1px" }}>Developer Message:</label>
-          <textarea id="developerMessage" ref={developerMessageRef} rows={2} required defaultValue={developerMessageDefault} style={{ fontFamily: "Impact, Arial Black, Arial, sans-serif", fontSize: "1.1rem", padding: "0.75rem", border: "4px solid #222", background: "#fff", color: "#e10600" }} />
-
-          <label htmlFor="userMessage" style={{ fontWeight: "bold", color: "#e10600", fontSize: "1.2rem", textTransform: "uppercase", letterSpacing: "1px" }}>User Message:</label>
-          <textarea id="userMessage" ref={userMessageRef} rows={2} required defaultValue={userMessageDefault} style={{ fontFamily: "Impact, Arial Black, Arial, sans-serif", fontSize: "1.1rem", padding: "0.75rem", border: "4px solid #222", background: "#fff", color: "#e10600" }} />
-
-          <label htmlFor="model" style={{ fontWeight: "bold", color: "#e10600", fontSize: "1.2rem", textTransform: "uppercase", letterSpacing: "1px" }}>Model (optional):</label>
-          <input id="model" ref={modelRef} type="text" placeholder="gpt-4.1-mini (default)" style={{ fontFamily: "Impact, Arial Black, Arial, sans-serif", fontSize: "1.1rem", padding: "0.75rem", border: "4px solid #222", background: "#fff", color: "#e10600" }} />
-
-          <label htmlFor="apiKey" style={{ fontWeight: "bold", color: "#e10600", fontSize: "1.2rem", textTransform: "uppercase", letterSpacing: "1px" }}>OpenAI API Key:</label>
-          <input id="apiKey" ref={apiKeyRef} type="password" required autoComplete="off" style={{ fontFamily: "Impact, Arial Black, Arial, sans-serif", fontSize: "1.1rem", padding: "0.75rem", border: "4px solid #222", background: "#fff", color: "#e10600" }} />
-
-          <button type="submit" disabled={loading} style={{ background: "#222", color: "#fff", border: "4px solid #e10600", padding: "1rem 2rem", fontSize: "1.3rem", fontFamily: "Impact, Arial Black, Arial, sans-serif", textTransform: "uppercase", letterSpacing: "2px", cursor: "pointer", boxShadow: "0 4px 16px rgba(0,0,0,0.15)", fontWeight: "bold", display: "flex", alignItems: "center" }}>
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ verticalAlign: "middle", marginRight: 8 }}>
-              <circle cx="16" cy="16" r="16" fill="#e10600" stroke="#222" strokeWidth="3" />
-              <polygon points="10,8 26,16 10,24" fill="#fff" stroke="#222" strokeWidth="2" />
-            </svg>
-            {loading ? "Sending..." : "Send to API"}
-          </button>
-        </form>
-        <section style={{ marginTop: "2.5rem", background: "#222", border: "6px solid #e10600", padding: "2rem", color: "#fff", boxShadow: "0 4px 16px rgba(225,6,0,0.15)" }}>
-          <div style={{ marginBottom: "1rem" }}>
-            <svg width="100%" height="60" viewBox="0 0 700 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="700" height="60" fill="#222" />
-              <polygon points="0,60 700,0 700,60" fill="#e10600" opacity="0.2" />
-              <text x="50%" y="40" textAnchor="middle" fontSize="32" fontFamily="Impact, Arial Black, Arial, sans-serif" fill="#fff" stroke="#e10600" strokeWidth="2">RESPONSE</text>
-            </svg>
-          </div>
-          <pre style={{ opacity: visible ? 1 : 0, transform: visible ? "translateY(0) scale(1)" : "translateY(30px) scale(0.98)", transition: "opacity 0.7s cubic-bezier(.68,-0.55,.27,1.55), transform 0.7s cubic-bezier(.68,-0.55,.27,1.55)", whiteSpace: "pre-wrap", wordBreak: "break-word", color: "#fff", fontSize: "1.2rem", fontFamily: "Courier New, Courier, monospace", background: "none", margin: 0 }}>
-            {loading ? <span style={{ display: "inline-block" }}><svg className="spinner" width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" stroke="#fff" strokeWidth="6" fill="none"/><circle cx="20" cy="20" r="16" stroke="#e10600" strokeWidth="6" fill="none" strokeDasharray="100" strokeDashoffset="60"><animateTransform attributeName="transform" type="rotate" from="0 20 20" to="360 20 20" dur="1s" repeatCount="indefinite"/></circle></svg></span> : error ? `Error: ${error}` : response}
-          </pre>
-        </section>
-      </div>
-    </main>
+    <Container maxWidth="sm" sx={{ py: 4, height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2, flexDirection: 'column' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+          <Typography variant="h4" align="center" color="primary" fontWeight={700} sx={{ flexGrow: 1 }}>
+            Revolution Chat
+          </Typography>
+          <Tooltip title="Settings">
+            <IconButton color="primary" onClick={() => setSettingsOpen(true)} size="large" sx={{ ml: 2 }}>
+              <SettingsIcon fontSize="large" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+        <Typography variant="subtitle1" align="center" color="text.secondary" sx={{ mt: 1 }}>
+          Brutalist poetry answers in the style of Mayakovsky
+        </Typography>
+      </Box>
+      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', bgcolor: '#f5f5f5', borderRadius: 3, boxShadow: 2, p: 2, mb: 2, minHeight: 0, overflow: 'hidden' }}>
+        <Box sx={{ flexGrow: 1, overflowY: 'auto', px: 1, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {chat.map((msg, idx) => (
+            <Box key={idx} sx={{
+              display: 'flex',
+              justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+              width: '100%'
+            }}>
+              <Box sx={{
+                bgcolor: msg.role === 'user' ? '#43d854' : '#1976d2',
+                color: '#fff',
+                px: 2,
+                py: 1.5,
+                borderRadius: 3,
+                maxWidth: '80%',
+                fontFamily: 'monospace',
+                fontSize: '1.1rem',
+                boxShadow: 2,
+                textAlign: 'left',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                position: 'relative'
+              }}>
+                {msg.content}
+              </Box>
+            </Box>
+          ))}
+          <div ref={messagesEndRef} />
+        </Box>
+        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ display: 'flex', alignItems: 'center', gap: 1, pt: 2, borderTop: '1px solid #ddd', mt: 2 }}>
+          <TextField
+            label="Type your message..."
+            inputRef={userMessageRef}
+            required
+            fullWidth
+            multiline
+            minRows={1}
+            maxRows={4}
+            variant="filled"
+            color="primary"
+            sx={{ flexGrow: 1 }}
+            onKeyDown={e => {
+              if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey) {
+                e.preventDefault();
+                const form = (e.target as HTMLElement).closest('form');
+                if (form) {
+                  form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                }
+              }
+            }}
+          />
+          <Button
+            type="submit"
+            disabled={loading}
+            size="large"
+            variant="contained"
+            color="primary"
+            sx={{ borderRadius: 3, fontWeight: 700, fontSize: "1.1rem", minWidth: 64 }}
+          >
+            {loading ? <CircularProgress size={24} color="inherit" /> : "Send"}
+          </Button>
+        </Box>
+      </Box>
+      <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Settings</DialogTitle>
+        <DialogContent>
+          <Grid container direction="column" spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} sx={{ width: '100%' }}>
+              <TextField
+                label="Model (optional)"
+                inputRef={modelRef}
+                placeholder="gpt-4.1-mini (default)"
+                fullWidth
+                variant="filled"
+                color="primary"
+                defaultValue={typeof window !== 'undefined' ? window.localStorage.getItem('model') || '' : ''}
+              />
+            </Grid>
+            <Grid item xs={12} sx={{ width: '100%' }}>
+              <TextField
+                label="OpenAI API Key"
+                inputRef={apiKeyRef}
+                type="password"
+                required
+                fullWidth
+                variant="filled"
+                color="primary"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <KeyIcon color="primary" />
+                    </InputAdornment>
+                  ),
+                  autoComplete: "off"
+                }}
+                defaultValue={typeof window !== 'undefined' ? window.localStorage.getItem('apiKey') || '' : ''}
+              />
+            </Grid>
+            <Grid item xs={12} sx={{ width: '100%' }}>
+              <TextField
+                label="Port Override (development only)"
+                inputRef={portOverrideRef}
+                placeholder="Leave empty for default"
+                fullWidth
+                variant="filled"
+                color="primary"
+                defaultValue={typeof window !== 'undefined' ? window.localStorage.getItem('portOverride') || '' : ''}
+              />
+            </Grid>
+            <Grid item xs={12} sx={{ width: '100%' }}>
+              <Accordion sx={{ mb: 0 }}>
+                <AccordionSummary
+                  expandIcon={<ExpandMoreIcon />}
+                  aria-controls="dev-msg-content"
+                  id="dev-msg-header"
+                >
+                  <Typography color="primary" fontWeight={600}>Developer Message (advanced)</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <TextField
+                    label="Developer Message"
+                    inputRef={developerMessageRef}
+                    defaultValue={typeof window !== 'undefined' ? window.localStorage.getItem('developerMessage') || developerMessageDefault : developerMessageDefault}
+                    required
+                    fullWidth
+                    multiline
+                    minRows={2}
+                    variant="filled"
+                    color="primary"
+                  />
+                </AccordionDetails>
+              </Accordion>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSettingsOpen(false)} color="secondary">Cancel</Button>
+          <Button onClick={handleSettingsSave} color="primary" variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
   );
 }
