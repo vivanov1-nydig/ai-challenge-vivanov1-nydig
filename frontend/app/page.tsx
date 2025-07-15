@@ -85,7 +85,7 @@ export default function Home() {
         api_key: apiKeyRef.current?.value || localStorage.getItem('apiKey') || ''
       };
       const apiKey = apiKeyRef.current?.value || '';
-      const headers = {
+      const headers: Record<string, string> = {
         "Content-Type": "application/json"
       };
       if (apiKey) {
@@ -218,74 +218,66 @@ export default function Home() {
       <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Settings</DialogTitle>
         <DialogContent>
-          <Grid container direction="column" spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} sx={{ width: '100%' }}>
-              <TextField
-                label="Model (optional)"
-                inputRef={modelRef}
-                placeholder="gpt-4.1-mini (default)"
-                fullWidth
-                variant="filled"
-                color="primary"
-                defaultValue={typeof window !== 'undefined' ? window.localStorage.getItem('model') || '' : ''}
-              />
-            </Grid>
-            <Grid item xs={12} sx={{ width: '100%' }}>
-              <TextField
-                label="OpenAI API Key"
-                inputRef={apiKeyRef}
-                type="password"
-                required
-                fullWidth
-                variant="filled"
-                color="primary"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <KeyIcon color="primary" />
-                    </InputAdornment>
-                  ),
-                  autoComplete: "off"
-                }}
-                defaultValue={typeof window !== 'undefined' ? window.localStorage.getItem('apiKey') || '' : ''}
-              />
-            </Grid>
-            <Grid item xs={12} sx={{ width: '100%' }}>
-              <TextField
-                label="Port Override (development only)"
-                inputRef={portOverrideRef}
-                placeholder="Leave empty for default"
-                fullWidth
-                variant="filled"
-                color="primary"
-                defaultValue={typeof window !== 'undefined' ? window.localStorage.getItem('portOverride') || '' : ''}
-              />
-            </Grid>
-            <Grid item xs={12} sx={{ width: '100%' }}>
-              <Accordion sx={{ mb: 0 }}>
-                <AccordionSummary
-                  expandIcon={<ExpandMoreIcon />}
-                  aria-controls="dev-msg-content"
-                  id="dev-msg-header"
-                >
-                  <Typography color="primary" fontWeight={600}>Developer Message (advanced)</Typography>
-                </AccordionSummary>
-                <AccordionDetails>
-                  <TextField
-                    label="Developer Message"
-                    inputRef={developerMessageRef}
-                    defaultValue={typeof window !== 'undefined' ? window.localStorage.getItem('developerMessage') || developerMessageDefault : developerMessageDefault}
-                    required
-                    fullWidth
-                    multiline
-                    minRows={2}
-                    variant="filled"
-                    color="primary"
-                  />
-                </AccordionDetails>
-              </Accordion>
-            </Grid>
-          </Grid>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+              label="Model (optional)"
+              inputRef={modelRef}
+              placeholder="gpt-4.1-mini (default)"
+              fullWidth
+              variant="filled"
+              color="primary"
+              defaultValue={typeof window !== 'undefined' ? window.localStorage.getItem('model') || '' : ''}
+            />
+            <TextField
+              label="OpenAI API Key"
+              inputRef={apiKeyRef}
+              type="password"
+              required
+              fullWidth
+              variant="filled"
+              color="primary"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <KeyIcon color="primary" />
+                  </InputAdornment>
+                ),
+                autoComplete: "off"
+              }}
+              defaultValue={typeof window !== 'undefined' ? window.localStorage.getItem('apiKey') || '' : ''}
+            />
+            <TextField
+              label="Port Override (development only)"
+              inputRef={portOverrideRef}
+              placeholder="Leave empty for default"
+              fullWidth
+              variant="filled"
+              color="primary"
+              defaultValue={typeof window !== 'undefined' ? window.localStorage.getItem('portOverride') || '' : ''}
+            />
+            <Accordion sx={{ mb: 0 }}>
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                aria-controls="dev-msg-content"
+                id="dev-msg-header"
+              >
+                <Typography color="primary" fontWeight={600}>Developer Message (advanced)</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <TextField
+                  label="Developer Message"
+                  inputRef={developerMessageRef}
+                  defaultValue={typeof window !== 'undefined' ? window.localStorage.getItem('developerMessage') || developerMessageDefault : developerMessageDefault}
+                  required
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  variant="filled"
+                  color="primary"
+                />
+              </AccordionDetails>
+            </Accordion>
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSettingsOpen(false)} color="secondary">Cancel</Button>
