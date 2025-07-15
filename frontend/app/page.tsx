@@ -74,17 +74,32 @@ export default function Home() {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    // Get values from refs first, then fallback to localStorage
+    const apiKey = apiKeyRef.current?.value || localStorage.getItem('apiKey') || '';
+    const developerMsg = developerMessageRef.current?.value || localStorage.getItem('developerMessage') || developerMessageDefault;
     const userMsg = userMessageRef.current?.value || "";
-    if (!userMsg.trim()) return;
+
+    // Validate required fields
+    if (!apiKey.trim() || !developerMsg.trim()) {
+      setChat(prev => [...prev, { role: "error", content: "OpenAPI Key and Developer Message are required fields." }]);
+      setLoading(false);
+      return;
+    }
+    if (!userMsg.trim()) {
+      setChat(prev => [...prev, { role: "error", content: "User message cannot be empty." }]);
+      setLoading(false);
+      return;
+    }
+
     setChat(prev => [...prev, { role: "user", content: userMsg }]);
     try {
       const payload = {
-        developer_message: developerMessageRef.current?.value || developerMessageDefault,
-        user_message: userMessageRef.current?.value || userMessageDefault,
+        developer_message: developerMsg,
+        user_message: userMsg,
         model: modelRef.current?.value || "gpt-4.1-nano",
-        api_key: apiKeyRef.current?.value || localStorage.getItem('apiKey') || ''
+        api_key: apiKey
       };
-      const apiKey = apiKeyRef.current?.value || '';
       const headers: Record<string, string> = {
         "Content-Type": "application/json"
       };
@@ -101,9 +116,9 @@ export default function Home() {
         const text = await res.text();
         // Detect HTML error response and show a friendly error
         if (text.startsWith("<!DOCTYPE html>")) {
-          setError("API error: The backend returned an unexpected HTML response. Please check your API key, server status, or try again later.");
+          setChat(prev => [...prev, { role: "error", content: "API error: The backend returned an unexpected HTML response. Please check your API key, server status, or try again later." }]);
         } else {
-          setError(text);
+          setChat(prev => [...prev, { role: "error", content: text }]);
         }
         setLoading(false);
         return;
@@ -123,7 +138,7 @@ export default function Home() {
       setChat(prev => [...prev, { role: "assistant", content: result }]);
       if (userMessageRef.current) userMessageRef.current.value = "";
     } catch (err: any) {
-      setError(err.message);
+      setChat(prev => [...prev, { role: "error", content: err.message }]);
     } finally {
       setLoading(false);
     }
@@ -161,7 +176,7 @@ export default function Home() {
               width: '100%'
             }}>
               <Box sx={{
-                bgcolor: msg.role === 'user' ? '#43d854' : '#1976d2',
+                bgcolor: msg.role === 'user' ? '#43d854' : msg.role === 'error' ? '#f44336' : '#1976d2',
                 color: '#fff',
                 px: 2,
                 py: 1.5,
@@ -267,6 +282,7 @@ export default function Home() {
                 <TextField
                   label="Developer Message"
                   inputRef={developerMessageRef}
+                  key={settingsOpen ? 'open' : 'closed'}
                   defaultValue={typeof window !== 'undefined' ? window.localStorage.getItem('developerMessage') || developerMessageDefault : developerMessageDefault}
                   required
                   fullWidth
