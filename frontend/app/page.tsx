@@ -77,12 +77,15 @@ export default function Home() {
 
     // Get values from refs first, then fallback to localStorage
     const apiKey = apiKeyRef.current?.value || localStorage.getItem('apiKey') || '';
-    const developerMsg = developerMessageRef.current?.value || localStorage.getItem('developerMessage') || developerMessageDefault;
+    let developerMsg = developerMessageRef.current?.value || localStorage.getItem('developerMessage');
+    if (!developerMsg || !developerMsg.trim()) {
+      developerMsg = developerMessageDefault;
+    }
     const userMsg = userMessageRef.current?.value || "";
 
     // Validate required fields
-    if (!apiKey.trim() || !developerMsg.trim()) {
-      setChat(prev => [...prev, { role: "error", content: "OpenAPI Key and Developer Message are required fields." }]);
+    if (!apiKey.trim()) {
+      setChat(prev => [...prev, { role: "error", content: "OpenAPI Key is a required field. Missing fields can be configured in Settings (Gear icon)." }]);
       setLoading(false);
       return;
     }
@@ -112,6 +115,11 @@ export default function Home() {
         body: JSON.stringify(payload)
       });
       const contentType = res.headers.get("content-type") || "";
+      if (res.status === 401 || res.status === 403) {
+        setChat(prev => [...prev, { role: "error", content: "Your OpenAI API key is invalid or unauthorized. Please check your key in Settings (Gear icon)." }]);
+        setLoading(false);
+        return;
+      }
       if (!res.ok || contentType.includes("text/html")) {
         const text = await res.text();
         // Detect HTML error response and show a friendly error
@@ -167,7 +175,18 @@ export default function Home() {
           Brutalist poetry answers in the style of Mayakovsky
         </Typography>
       </Box>
-      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', bgcolor: '#f5f5f5', borderRadius: 3, boxShadow: 2, p: 2, mb: 2, minHeight: 0, overflow: 'hidden' }}>
+      <Box sx={{
+        flexGrow: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        bgcolor: '#f5f5f5',
+        borderRadius: 3,
+        boxShadow: 2,
+        p: 2,
+        mb: 2,
+        minHeight: 0,
+        overflow: 'hidden',
+      }}>
         <Box sx={{ flexGrow: 1, overflowY: 'auto', px: 1, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
           {chat.map((msg, idx) => (
             <Box key={idx} sx={{
