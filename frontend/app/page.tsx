@@ -23,6 +23,7 @@ import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
+import styles from "./page.module.css";
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
@@ -37,6 +38,8 @@ export default function Home() {
   const developerMessageRef = useRef<HTMLInputElement>(null);
   const portOverrideRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [animatedIdx, setAnimatedIdx] = useState<number | null>(null);
+  const [chatBgAnimated, setChatBgAnimated] = useState(false);
 
   const developerMessageDefault =
     "To every user question the response should be informative, but should be rendered as a brutalist poetry in the style of Mayakovsky, in English.";
@@ -158,6 +161,18 @@ export default function Home() {
     }
   }, [chat]);
 
+  useEffect(() => {
+    if (chat.length > 0) {
+      setAnimatedIdx(chat.length - 1);
+      setChatBgAnimated(true);
+      const timer = setTimeout(() => {
+        setAnimatedIdx(null);
+        setChatBgAnimated(false);
+      }, 600); // match animation duration
+      return () => clearTimeout(timer);
+    }
+  }, [chat]);
+
   return (
     <Container maxWidth="sm" sx={{ py: 4, height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2, flexDirection: 'column' }}>
@@ -185,8 +200,10 @@ export default function Home() {
         p: 2,
         mb: 2,
         minHeight: 0,
-        overflow: 'hidden',
-      }}>
+        overflow: 'visible', // Make sparks visible outside bubble
+      }}
+      className={chatBgAnimated ? styles['chat-bg-animate'] : undefined}
+      >
         <Box sx={{ flexGrow: 1, overflowY: 'auto', px: 1, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
           {chat.map((msg, idx) => (
             <Box key={idx} sx={{
@@ -194,22 +211,40 @@ export default function Home() {
               justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
               width: '100%'
             }}>
-              <Box sx={{
-                bgcolor: msg.role === 'user' ? '#43d854' : msg.role === 'error' ? '#f44336' : '#1976d2',
-                color: '#fff',
-                px: 2,
-                py: 1.5,
-                borderRadius: 3,
-                maxWidth: '80%',
-                fontFamily: 'monospace',
-                fontSize: '1.1rem',
-                boxShadow: 2,
-                textAlign: 'left',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                position: 'relative'
-              }}>
-                {msg.content}
+              <Box
+                sx={{ position: 'relative', width: '100%' }}
+              >
+                {/* Sparks under the bubble for ALL message types when animating */}
+                {animatedIdx === idx && (
+                  <div className={styles['bubble-sparks']}>
+                    <span className={styles['spark'] + ' ' + styles['spark1']} />
+                    <span className={styles['spark'] + ' ' + styles['spark2']} />
+                    <span className={styles['spark'] + ' ' + styles['spark3']} />
+                    <span className={styles['spark'] + ' ' + styles['spark4']} />
+                    <span className={styles['spark'] + ' ' + styles['spark5']} />
+                  </div>
+                )}
+                <Box
+                  className={animatedIdx === idx ? styles["bubble-animate"] : undefined}
+                  sx={{
+                    bgcolor: msg.role === 'user' ? '#43d854' : msg.role === 'error' ? '#f44336' : '#1976d2',
+                    color: '#fff',
+                    px: 2,
+                    py: 1.5,
+                    borderRadius: 3,
+                    maxWidth: '80%',
+                    fontFamily: 'monospace',
+                    fontSize: '1.1rem',
+                    boxShadow: 2,
+                    textAlign: 'left',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    position: 'relative',
+                    zIndex: 1
+                  }}
+                >
+                  {msg.content}
+                </Box>
               </Box>
             </Box>
           ))}
